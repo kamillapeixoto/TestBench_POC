@@ -1,0 +1,169 @@
+
+/* -----------------------  HDI  -----------------------  */
+
+/* Pressure measured by the HDIB002AUY8P5 sensor through I2C communication in milibars.*/
+uint16_t gu16PressureHDI;
+
+/* Declaration of the LPI2C transfer buffer */
+uint8_t  u8I2CBufferHDI[I2C_BUFFER_SIZE];
+
+/* Flag used to store if an I2C ISR was executed*/
+volatile bool gbI2CDone = false;
+
+
+/* -----------------------  CO2  -----------------------  */
+/* Declaration of the flags to check the callbacks are executed */
+volatile bool gbCO2Done;
+volatile bool gbCO2flag;
+
+/* CO2 and TVOC measured from the CO2 sensor */
+uint16_t gu16CO2;
+uint16_t gu16TVOC;
+
+bool test12c = false;
+
+
+/* -----------------------  MPR  -----------------------  */
+volatile bool gbMPR_OpMode;
+volatile bool gbMPRDone;
+uint8_t MPR_RX_buffer [MPR_DATA_BUFFER_SIZE];
+float gfPressureMPR;
+float gfTempMPR;
+
+uint8_t u8RequestOpMode[MPR_OP_BUFFER_SIZE] = {0xAA, 0x00, 0x00};
+/* Read the data from the sensor */
+//uint8_t TX_Buffer_MPR[MPR_DATA_BUFFER_SIZE] = {0xFA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+uint8_t TX_Buffer_MPR[MPR_DATA_BUFFER_SIZE] = {0xF0, 0x00, 0x00, 0x00};
+
+
+// SPI communication variables
+lpspi_state_t LPSPI_MPRState;
+
+
+
+
+
+/* -----------------------  I2C  -----------------------  */
+
+/* Variable used for the loop that initializes the I2C data buffer */
+uint16_t i;
+
+/* Sensitivity of the HDI sensor */
+uint64_t HDISensitivity;
+
+
+
+
+/* -----------------------  CO2  -----------------------  */
+/* Declare buffer used to store the received data */
+uint8_t	CO2_RX_buffer[CO2_RX_BUFFER_SIZE];
+
+
+
+
+
+
+void timing_pal_CO2_callBack(void * userData)
+{
+	(void)userData;
+
+	/* Receive Data from CO2 sensor*/
+//	LPI2C_DRV_MasterReceiveData(INST_LPI2C1, CO2_RX_buffer,CO2_RX_BUFFER_SIZE, false);
+
+	gu16CO2  = ComputeCo2(CO2_RX_buffer);
+	gu16TVOC = ComputeTVOC(CO2_RX_buffer);
+
+	/* Set CO2 communication complete flag */
+	gbCO2Done = true;
+	gbCO2flag = !gbCO2flag;
+}
+
+
+void timing_pal_MPR_callBack(void * userData)
+{
+	(void)userData;
+
+
+	 if (gbMPR_OpMode == true)
+	{
+		/* Request data from the sensor */
+		LPSPI_DRV_MasterTransfer(LPSPI_MPR, TX_Buffer_MPR, MPR_RX_buffer, MPR_DATA_BUFFER_SIZE);
+
+		/* Compute the Pressure using the MPR sensor*/
+		gfPressureMPR =  ComputePressureMPR(MPR_RX_buffer);
+
+		gbMPR_OpMode = false;
+
+	}
+	else
+	{
+		/* Request the sensor to leave Standby Mode and enter the Operation Mode */
+		uint8_t u8DataDiscard[MPR_OP_BUFFER_SIZE] = {0x00, 0x00, 0x00}; /* Trash sent by the sensor */
+		LPSPI_DRV_MasterTransfer(LPSPI_MPR, &u8RequestOpMode, &u8DataDiscard, MPR_OP_BUFFER_SIZE);
+
+		/* Set CO2 communication complete flag */
+		gbMPR_OpMode = true;
+	}
+
+
+	gbMPRDone = true;
+
+
+
+}
+
+
+
+
+
+/*------------------------------------------------------------------------------*/
+main
+
+ HDISensitivity = SensitivyHDI ();
+ 
+ 
+ 
+	    	/* Initialize LPSPI0 */
+
+	 LPSPI_DRV_MasterInit(LPSPI_MPR,&LPSPI_MPRState,&LPSPI_MPR_MasterConfig);
+
+ 
+ 
+ 
+ 
+    /* Initialize MPR related peripheral */
+  Init_MPR();
+
+
+	/* Initialize CO2 related peripheral */
+   // Init_CO2();
+   
+   
+   
+   
+   /*------------------------------------------------*/ INIT
+   
+   
+/* Initialize LPIT peripheral*/
+void Init_LPIT(void)
+{
+	/* Initialize LPIT instance 0
+		 *	-	Reset and enable peripheral
+		 */
+//	    LPIT_DRV_Init(INST_LPIT1, &lpit1_InitConfig);
+	    /* Initialize LPIT channel 0 and configure it as a periodic counter
+	     * which is used to generate an interrupt every second.
+	     */
+//	    LPIT_DRV_InitChannel(INST_LPIT1, LPIT_CHANNEL_HDI, &lpit1_ChnConfig_HDI);
+	//    LPIT_DRV_InitChannel(INST_LPIT1, LPIT_CHANNEL_GAS, &lpit1_ChnConfig_Gasboard);
+
+
+}
+
+
+
+/* Initialize LPI2C peripheral*/
+void Init_LPI2C(void)
+{
+
+}
